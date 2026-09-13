@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prior Elicitation — Forschungszulage RCT</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #1e3a8a;
+      --blue:   #2563eb;
+      --blue-lt:#dbeafe;
+      --blue-xs:#eff6ff;
+      --slate:  #475569;
+      --muted:  #94a3b8;
+      --border: #e2e8f0;
+      --bg:     #f8fafc;
+      --white:  #ffffff;
+      --green:  #16a34a;
+      --green-lt:#dcfce7;
+      --amber-lt:#fef9c3;
+      --amber:  #92400e;
+      --red:    #dc2626;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: #1e293b;
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── Pages ── */
+    .page { display: none; flex-direction: column; min-height: 100vh; }
+    .page.active { display: flex; }
+
+    /* ── Header ── */
+    .hdr {
+      background: var(--navy);
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .hdr-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+    .hdr-sub   { font-size: 11px; opacity: .65; margin-top: 2px; }
+
+    /* ── Progress ── */
+    .prog-wrap { height: 3px; background: var(--border); flex-shrink: 0; }
+    .prog-bar  { height: 100%; background: var(--blue); transition: width .3s; }
+
+    /* ── Step dots ── */
+    .steps { display: flex; gap: 5px; align-items: center; }
+    .step  { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.35); }
+    .step.done   { background: rgba(255,255,255,.7); }
+    .step.active { background: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,.4); }
+
+    /* ── Content wrapper ── */
+    .content {
+      flex: 1;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 22px 24px;
+      margin-bottom: 16px;
+    }
+
+    /* ── Typography ── */
+    h1 { font-size: 22px; font-weight: 600; color: var(--navy); margin-bottom: 8px; letter-spacing: -.02em; }
+    h2 { font-size: 16px; font-weight: 600; color: var(--navy); margin-bottom: 10px; }
+    h3 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    p  { color: var(--slate); line-height: 1.65; }
+
+    /* ── Question box ── */
+    .q-box {
+      background: var(--blue-xs);
+      border-left: 3px solid var(--blue);
+      border-radius: 0 6px 6px 0;
+      padding: 12px 16px;
+      margin-bottom: 6px;
+      color: #1e293b;
+      font-size: 14px;
+      line-height: 1.65;
+    }
+    .hint { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+
+    /* ── Stone counter ── */
+    .ctr {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .ctr-lbl { font-size: 13px; color: var(--slate); }
+    .ctr-num { font-size: 20px; font-weight: 700; color: var(--navy); min-width: 26px; }
+    .ctr-bar-bg { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .ctr-bar    { height: 100%; background: var(--blue); border-radius: 3px; transition: width .2s; }
+    .ctr-done   { font-size: 12px; font-weight: 600; color: var(--green); white-space: nowrap; }
+
+    /* ── Bins ── */
+    .bins-wrap {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .bin-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 74px; }
+    .bin-box {
+      width: 56px;
+      height: 224px;        /* 11px/stone × 20 + 4px padding = 224 */
+      border: 1.5px solid var(--border);
+      border-radius: 5px;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      padding: 3px 3px 3px;
+      gap: 1px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      user-select: none;
+    }
+    .bin-box:hover           { border-color: var(--blue); background: var(--blue-xs); }
+    .bin-box.at-max          { cursor: default; }
+    .bin-box.at-max:hover    { border-color: var(--border); background: var(--bg); }
+    .stone {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--navy);
+      flex-shrink: 0;
+      opacity: .82;
+      cursor: pointer;
+      transition: transform .1s, opacity .1s;
+    }
+    .stone:hover { transform: scale(1.25); opacity: 1; }
+    .bin-count { font-size: 15px; font-weight: 700; color: var(--navy); margin: 4px 0 2px; }
+    .bin-btns  { display: flex; gap: 3px; margin-bottom: 4px; }
+    .bin-btn {
+      width: 24px; height: 20px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--white);
+      color: var(--slate);
+      font-size: 13px;
+      cursor: pointer;
+      line-height: 1;
+      transition: background .1s;
+    }
+    .bin-btn:hover { background: var(--bg); }
+    .bin-lbl {
+      font-size: 10px;
+      color: var(--slate);
+      text-align: center;
+      max-width: 74px;
+      line-height: 1.3;
+      white-space: pre-line;
+    }
+
+    /* ── Forms ── */
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12px; font-weight: 500; color: var(--slate); margin-bottom: 4px; }
+    .field input, .field select {
+      width: 100%; padding: 8px 10px;
+      border: 1px solid var(--border); border-radius: 5px;
+      font-size: 14px; color: #1e293b; background: var(--white);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .field input:focus, .field select:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-lt);
+    }
+
+    /* ── Buttons ── */
+    .btn-p {
+      padding: 9px 22px;
+      border-radius: 6px; border: none;
+      background: var(--navy); color: #fff;
+      font-size: 14px; font-weight: 500;
+      cursor: pointer; transition: background .15s;
+    }
+    .btn-p:hover    { background: var(--blue); }
+    .btn-p:disabled { background: var(--border); cursor: not-allowed; }
+    .btn-s {
+      padding: 9px 18px;
+      border-radius: 6px; border: 1px solid var(--border);
+      background: var(--white); color: var(--slate);
+      font-size: 14px; cursor: pointer; transition: background .15s;
+    }
+    .btn-s:hover { background: var(--bg); }
+    .btn-danger { color: var(--red); }
+
+    .nav { display: flex; justify-content: space-between; align-items: center; margin-top: 22px; }
+
+    /* ── Welcome ── */
+    .hero { text-align: center; padding: 16px 0 28px; }
+    .hero h1 { font-size: 24px; margin-bottom: 10px; }
+    .hero p   { max-width: 500px; margin: 0 auto 22px; font-size: 14px; }
+    .info-box {
+      background: var(--blue-xs);
+      border: 1px solid var(--blue-lt);
+      border-radius: 7px;
+      padding: 13px 16px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: var(--slate);
+      line-height: 1.65;
+    }
+    .info-box strong { color: #1e293b; }
+
+    /* ── Done summary ── */
+    .sum-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
+    .sum-lbl  { width: 128px; text-align: right; color: var(--muted); flex-shrink: 0; }
+    .sum-bg   { flex: 1; height: 12px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .sum-fill { height: 100%; background: var(--blue); border-radius: 3px; }
+    .sum-n    { width: 22px; font-weight: 600; color: var(--slate); }
+
+    /* ── Admin ── */
+    .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+    .b-academic { background: var(--blue-lt); color: var(--navy); }
+    .b-policy   { background: var(--amber-lt); color: var(--amber); }
+    .b-founder  { background: var(--green-lt); color: #14532d; }
+    .b-other    { background: var(--bg); color: var(--slate); }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; padding: 8px 10px; color: var(--muted); border-bottom: 1px solid var(--border); font-weight: 500; }
+    td { padding: 7px 10px; border-bottom: 1px solid var(--bg); vertical-align: middle; }
+
+    .agg-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .agg-lbl  { font-size: 11px; color: var(--slate); text-align: right; width: 130px; flex-shrink: 0; }
+    .agg-bg   { flex: 1; height: 14px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .agg-fill { height: 100%; background: var(--blue); border-radius: 3px; transition: width .4s; }
+    .agg-pct  { font-size: 11px; color: var(--muted); width: 32px; text-align: right; }
+
+    .stat-row { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; }
+    .stat-num { font-size: 26px; font-weight: 700; color: var(--navy); }
+    .stat-lbl { font-size: 11px; color: var(--muted); }
+
+    /* ── Modal ── */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: var(--white); border-radius: 8px;
+      padding: 22px 24px; width: 300px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.18);
+    }
+    .modal h3 { margin-bottom: 12px; }
+    .modal input {
+      width: 100%; padding: 8px 10px;
+      border: 1px solid var(--border); border-radius: 5px;
+      font-size: 14px; margin-bottom: 6px;
+    }
+    .modal-err { font-size: 12px; color: var(--red); margin-bottom: 8px; display: none; }
+    .modal-btns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
+
+    /* ── Divider ── */
+    hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+
+    @media (max-width: 600px) {
+      .content { padding: 20px 16px 40px; }
+      .hdr { padding: 12px 16px; }
+      .bins-wrap { gap: 5px; }
+      .bin-col { width: 60px; }
+      .bin-box { width: 46px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Admin password modal -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h3>Admin access</h3>
+    <input type="password" id="pwd-input" placeholder="Enter admin code"
+           onkeydown="if(event.key==='Enter')checkAdmin()">
+    <div class="modal-err" id="pwd-err">Incorrect code.</div>
+    <div class="modal-btns">
+      <button class="btn-s" onclick="closeModal()">Cancel</button>
+      <button class="btn-p" onclick="checkAdmin()">Enter</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── WELCOME ── -->
+<div class="page active" id="pg-welcome">
+  <div class="prog-wrap"><div class="prog-bar" style="width:0%"></div></div>
+  <div class="hdr">
+    <div>
+      <div class="hdr-title">Prior Elicitation Survey</div>
+      <div class="hdr-sub">Forschungszulage Start-Up RCT &middot; Iacovone, McKenzie &amp; Meager (Econometrica 2025)</div>
+    </div>
+    <div style="font-size:11px;opacity:.6;text-align:right">Nils Handler<br>University of Zurich</div>
+  </div>
+  <div class="content">
+    <div class="hero">
+      <h1>Prior Elicitation Survey</h1>
+      <p>Share your beliefs about a randomized field experiment <em>before</em> results are observed, following the Bayesian methodology of Iacovone, McKenzie &amp; Meager (<em>Econometrica</em>, 2025).</p>
+      <button class="btn-p" onclick="goto('pg-info')">Start survey &rarr;</button>
+    </div>
+    <div class="info-box">
+      <strong>The study.</strong> Eligible R&amp;D-active German start-ups are randomized (N&nbsp;=&nbsp;500, two arms). The treatment arm receives a LinkedIn message offering an AI-generated pre-filled Forschungszulage (R&amp;D tax credit) draft application. Primary outcome: BSFZ application within 3&nbsp;months. Baseline application rate &asymp;&nbsp;5%.
+    </div>
+    <div class="info-box">
+      <strong>What you will do.</strong> Distribute 20 stones across bins for three questions. Each stone = 5% probability mass. Takes about 3&ndash;4 minutes.
+    </div>
+  </div>
+</div>
+
+<!-- ── INFO ── -->
+<div class="page" id="pg-info">
+  <div class="prog-wrap"><div class="prog-bar" style="width:12%"></div></div>
+  <div class="hdr">
+    <div>
+      <div class="hdr-title">About you &mdash; Step 1 of 4</div>
+    </div>
+    <div class="steps">
+      <div class="step active"></div>
+      <div class="step"></div><div class="step"></div><div class="step"></div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="card">
+      <h2>About you</h2>
+      <p style="margin-bottom:18px;font-size:13px">Optional &mdash; helps us interpret heterogeneity across respondents.</p>
+      <div class="field">
+        <label>Name (optional)</label>
+        <input type="text" id="f-name" placeholder="Leave blank to stay anonymous">
+      </div>
+      <div class="field">
+        <label>I am a&hellip;</label>
+        <select id="f-type">
+          <option value="academic">Academic / researcher</option>
+          <option value="policy">Policy-maker / government official</option>
+          <option value="founder">Founder / firm representative</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Familiarity with German innovation policy</label>
+        <select id="f-fam">
+          <option value="1">1 &mdash; very unfamiliar</option>
+          <option value="2">2</option>
+          <option value="3" selected>3 &mdash; moderate</option>
+          <option value="4">4</option>
+          <option value="5">5 &mdash; expert</option>
+        </select>
+      </div>
+    </div>
+    <div class="nav">
+      <button class="btn-s" onclick="goto('pg-welcome')">&larr; Back</button>
+      <button class="btn-p" onclick="goto('pg-t0');syncBins(0)">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TASK 0 ── -->
+<div class="page" id="pg-t0">
+  <div class="prog-wrap"><div class="prog-bar" style="width:35%"></div></div>
+  <div class="hdr">
+    <div>
+      <div class="hdr-title">Task 1 &mdash; Treatment Effect &mdash; Step 2 of 4</div>
+    </div>
+    <div class="steps">
+      <div class="step done"></div><div class="step active"></div>
+      <div class="step"></div><div class="step"></div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="q-box">
+      If eligible start-ups are offered an AI-generated pre-filled Forschungszulage draft via LinkedIn outreach, <strong>by how many percentage points do you expect their 3-month BSFZ application rate to change</strong> relative to control?
+    </div>
+    <p class="hint">Baseline &asymp; 5% in control. Each stone = 5% probability mass. 20 stones total.</p>
+    <div class="ctr">
+      <span class="ctr-lbl">Placed</span>
+      <span class="ctr-num" id="cn0">0</span>
+      <span class="ctr-lbl">/ 20</span>
+      <div class="ctr-bar-bg"><div class="ctr-bar" id="cb0" style="width:0%"></div></div>
+      <span class="ctr-done" id="cd0" style="visibility:hidden">&#10003; Complete</span>
+    </div>
+    <div class="bins-wrap" id="bw0"></div>
+    <div class="nav">
+      <button class="btn-s" onclick="goto('pg-info')">&larr; Back</button>
+      <button class="btn-p" onclick="goto('pg-t1');syncBins(1)">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TASK 1 ── -->
+<div class="page" id="pg-t1">
+  <div class="prog-wrap"><div class="prog-bar" style="width:58%"></div></div>
+  <div class="hdr">
+    <div>
+      <div class="hdr-title">Task 2 &mdash; Primary Barrier &mdash; Step 3 of 4</div>
+    </div>
+    <div class="steps">
+      <div class="step done"></div><div class="step done"></div>
+      <div class="step active"></div><div class="step"></div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="q-box">
+      Among eligible R&amp;D-active start-ups that <strong>have not applied</strong> for the Forschungszulage, <strong>what share of non-take-up do you attribute to each barrier?</strong>
+    </div>
+    <p class="hint">Shares should sum to 100%. Each stone = 5% of the non-applying population.</p>
+    <div class="ctr">
+      <span class="ctr-lbl">Placed</span>
+      <span class="ctr-num" id="cn1">0</span>
+      <span class="ctr-lbl">/ 20</span>
+      <div class="ctr-bar-bg"><div class="ctr-bar" id="cb1" style="width:0%"></div></div>
+      <span class="ctr-done" id="cd1" style="visibility:hidden">&#10003; Complete</span>
+    </div>
+    <div class="bins-wrap" id="bw1"></div>
+    <div class="nav">
+      <button class="btn-s" onclick="goto('pg-t0')">&larr; Back</button>
+      <button class="btn-p" onclick="goto('pg-t2');syncBins(2)">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TASK 2 ── -->
+<div class="page" id="pg-t2">
+  <div class="prog-wrap"><div class="prog-bar" style="width:82%"></div></div>
+  <div class="hdr">
+    <div>
+      <div class="hdr-title">Task 3 &mdash; Opt-In Rate &mdash; Step 4 of 4</div>
+    </div>
+    <div class="steps">
+      <div class="step done"></div><div class="step done"></div>
+      <div class="step done"></div><div class="step active"></div>
+    </div>
+  </div>
+  <div class="content">
+    <div class="q-box">
+      What fraction of T1 start-ups (those sent the LinkedIn message) do you expect to <strong>opt in and receive the AI-generated draft</strong>?
+    </div>
+    <p class="hint">Each stone = 5% probability mass. 20 stones total.</p>
+    <div class="ctr">
+      <span class="ctr-lbl">Placed</span>
+      <span class="ctr-num" id="cn2">0</span>
+      <span class="ctr-lbl">/ 20</span>
+      <div class="ctr-bar-bg"><div class="ctr-bar" id="cb2" style="width:0%"></div></div>
+      <span class="ctr-done" id="cd2" style="visibility:hidden">&#10003; Complete</span>
+    </div>
+    <div class="bins-wrap" id="bw2"></div>
+    <div class="nav">
+      <button class="btn-s" onclick="goto('pg-t1')">&larr; Back</button>
+      <button class="btn-p" id="submit-btn" onclick="submitResponse()">Submit &rarr;</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── DONE ── -->
+<div class="page" id="pg-done">
+  <div class="prog-wrap"><div class="prog-bar" style="width:100%"></div></div>
+  <div class="hdr">
+    <div><div class="hdr-title">Response recorded</div></div>
+  </div>
+  <div class="content" style="text-align:center">
+    <div style="font-size:44px;margin:8px 0 10px">&#10003;</div>
+    <h1 style="margin-bottom:6px">Response saved</h1>
+    <p style="margin-bottom:28px">Your priors have been recorded. Aggregate results will be shared after the trial concludes.</p>
+    <div id="done-status" style="max-width:480px;margin:0 auto 20px"></div>
+    <div id="done-summary" style="text-align:left;max-width:480px;margin:0 auto 28px"></div>
+    <button class="btn-s" onclick="newResponse()">New response (next respondent)</button>
+  </div>
+</div>
+
+<!-- ── ADMIN ── -->
+<div class="page" id="pg-admin">
+  <div class="hdr">
+    <div>
+      <div class="hdr-title">Admin &mdash; Collected Responses</div>
+      <div class="hdr-sub">Prior elicitation data &middot; Forschungszulage RCT</div>
+    </div>
+    <button class="btn-s" onclick="goto('pg-welcome')" style="font-size:13px">&larr; Exit</button>
+  </div>
+  <div class="content" id="admin-body"><p>Loading&hellip;</p></div>
+</div>
+
+<script>
+/* =====================================================================
+   SETUP REQUIRED BEFORE YOU PUBLISH THIS PAGE
+   ---------------------------------------------------------------------
+   This page currently only saves to localStorage, meaning each device
+   only ever sees its own submissions. Fill in one or both of the
+   options below so responses reach you from every device that opens
+   the page, not just your own.
+
+   OPTION A. Straight to your inbox, easiest, no account needed
+   Set FORMSUBMIT_EMAIL to your email address, every submission is
+   emailed to you via formsubmit.co. First use needs one confirmation
+   click in an email they send you.
+
+   OPTION B. A Google Sheet you own, via Apps Script
+   Set WEBHOOK_URL to a deployed Apps Script Web App's URL. Use a
+   *separate* Google Sheet and Apps Script project from the first
+   survey, so the two don't mix data. Paste this into script.google.com,
+   from within a new Sheet's Extensions > Apps Script, then Deploy >
+   New deployment > Web app, access set to Anyone:
+
+     function doPost(e) {
+       var lock = LockService.getScriptLock();
+       lock.waitLock(10000);
+       try {
+         var sheet = SpreadsheetApp.getActiveSpreadsheet()
+           .getSheetByName('Responses')
+           || SpreadsheetApp.getActiveSpreadsheet().insertSheet('Responses');
+         var p = JSON.parse(e.postData.contents);
+         if (sheet.getLastRow() === 0) {
+           var header = ['timestamp','id','name','type','familiarity'];
+           p.taskLabels.forEach(function(bins, ti) {
+             bins.forEach(function(b) { header.push('t' + ti + '__' + b); });
+           });
+           sheet.appendRow(header);
+         }
+         var row = [new Date(), p.id, p.name, p.type, p.familiarity];
+         p.stones.forEach(function(arr) { arr.forEach(function(v){ row.push(v || 0); }); });
+         sheet.appendRow(row);
+         return ContentService.createTextOutput(JSON.stringify({status:'ok'}))
+           .setMimeType(ContentService.MimeType.JSON);
+       } catch (err) {
+         return ContentService.createTextOutput(JSON.stringify({status:'error', message:String(err)}))
+           .setMimeType(ContentService.MimeType.JSON);
+       } finally {
+         lock.releaseLock();
+       }
+     }
+
+   You can fill in both, the page will use both.
+   ===================================================================== */
+const CONFIG = {
+  FORMSUBMIT_EMAIL: 'elina.stuessi@uzh.ch',  // e.g. 'nils.handler@uzh.ch'
+  WEBHOOK_URL: 'https://script.google.com/macros/s/AKfycbxZ-NUNi9JkWNzPuy0kq4erZtTnwY62N2C1IAX6CUkt31ZHw5dSO_05a-QbVlADLadt4w/exec'        // e.g. 'https://script.google.com/macros/s/AKf.../exec'
+};
+
+// ── Data ─────────────────────────────────────────────────────────────────────
+const TOTAL = 20;
+const CODE  = 'forschung2026';
+
+const TASKS = [
+  { bins: ['< 0 pp', '0\u20133 pp', '3\u20136 pp', '6\u201310 pp', '10\u201315 pp', '15\u201320 pp', '> 20 pp'] },
+  { bins: ['Unaware of\nprogramme', 'Eligibility\nmisconception', 'Underestimates\npeer uptake', 'Admin burden /\ntime cost', 'Financially not\nworthwhile', 'Other'] },
+  { bins: ['< 5%', '5\u201315%', '15\u201330%', '30\u201350%', '50\u201370%', '> 70%'] },
+];
+
+let ST = TASKS.map(t => new Array(t.bins.length).fill(0));
+
+function tot(ti) { return ST[ti].reduce((a, b) => a + b, 0); }
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function goto(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'pg-admin') renderAdmin();
+}
+
+// ── Bins ──────────────────────────────────────────────────────────────────────
+function buildBins(ti) {
+  const wrap = document.getElementById('bw' + ti);
+  wrap.innerHTML = '';
+  TASKS[ti].bins.forEach((lbl, bi) => {
+    const col  = el('div', 'bin-col');
+    const box  = el('div', 'bin-box');
+    box.id     = 'box' + ti + '_' + bi;
+    box.onclick = () => add(ti, bi);
+
+    const cnt  = el('div', 'bin-count');
+    cnt.id     = 'bc' + ti + '_' + bi;
+    cnt.textContent = '0';
+
+    const btns = el('div', 'bin-btns');
+    const bm   = el('button', 'bin-btn'); bm.textContent = '\u2212';
+    bm.onclick = e => { e.stopPropagation(); rem(ti, bi); };
+    const bp   = el('button', 'bin-btn'); bp.textContent = '+';
+    bp.onclick = e => { e.stopPropagation(); add(ti, bi); };
+    btns.append(bm, bp);
+
+    const label = el('div', 'bin-lbl');
+    label.textContent = lbl;
+
+    col.append(box, cnt, btns, label);
+    wrap.appendChild(col);
+  });
+}
+
+function syncBins(ti) {
+  // re-render stones for current state (after back-navigation)
+  TASKS[ti].bins.forEach((_, bi) => refreshBox(ti, bi));
+  updateCtr(ti);
+}
+
+function refreshBox(ti, bi) {
+  const box = document.getElementById('box' + ti + '_' + bi);
+  const cnt = document.getElementById('bc'  + ti + '_' + bi);
+  if (!box) return;
+  box.querySelectorAll('.stone').forEach(s => s.remove());
+  const n = ST[ti][bi];
+  for (let i = 0; i < n; i++) {
+    const s = el('div', 'stone');
+    s.title   = 'Click to remove';
+    s.onclick = e => { e.stopPropagation(); rem(ti, bi); };
+    box.appendChild(s);
+  }
+  if (cnt) cnt.textContent = n;
+  box.classList.toggle('at-max', tot(ti) >= TOTAL);
+}
+
+function add(ti, bi) {
+  if (tot(ti) >= TOTAL) return;
+  ST[ti][bi]++;
+  refreshBox(ti, bi);
+  updateCtr(ti);
+}
+
+function rem(ti, bi) {
+  if (ST[ti][bi] <= 0) return;
+  ST[ti][bi]--;
+  refreshBox(ti, bi);
+  updateCtr(ti);
+}
+
+function updateCtr(ti) {
+  const t  = tot(ti);
+  const cn = document.getElementById('cn' + ti);
+  const cb = document.getElementById('cb' + ti);
+  const cd = document.getElementById('cd' + ti);
+  if (cn) cn.textContent = t;
+  if (cb) cb.style.width = (t / TOTAL * 100) + '%';
+  if (cd) cd.style.visibility = t === TOTAL ? 'visible' : 'hidden';
+  // update at-max class on all boxes in this task
+  TASKS[ti].bins.forEach((_, bi) => {
+    const box = document.getElementById('box' + ti + '_' + bi);
+    if (box) box.classList.toggle('at-max', t >= TOTAL);
+  });
+}
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+async function submitResponse() {
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving\u2026';
+
+  const resp = {
+    id:          Date.now().toString(),
+    ts:          new Date().toISOString(),
+    name:        document.getElementById('f-name').value.trim() || 'Anonymous',
+    type:        document.getElementById('f-type').value,
+    familiarity: +document.getElementById('f-fam').value,
+    stones:      ST.map(row => [...row]),
+  };
+
+  // always keep a local copy too, useful for on-device testing
+  try {
+    const arr = load();
+    arr.push(resp);
+    localStorage.setItem('fz_prior', JSON.stringify(arr));
+  } catch(e) { console.error(e); }
+
+  const hasWebhook = !!CONFIG.WEBHOOK_URL;
+  const hasEmail = !!CONFIG.FORMSUBMIT_EMAIL;
+  let webhookSent = false;
+  let emailOk = false;
+
+  if (hasWebhook) {
+    try {
+      const payload = { id: resp.id, name: resp.name, type: resp.type,
+        familiarity: resp.familiarity, stones: resp.stones,
+        taskLabels: TASKS.map(t => t.bins) };
+      // fire-and-forget, Apps Script does not send CORS headers back
+      fetch(CONFIG.WEBHOOK_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      webhookSent = true;
+    } catch (e) { console.error(e); }
+  }
+
+  if (hasEmail) {
+    try {
+      const modal = ti => {
+        const idx = resp.stones[ti].indexOf(Math.max(...resp.stones[ti]));
+        return TASKS[ti].bins[idx].replace('\n', ' ');
+      };
+      const res = await fetch('https://formsubmit.co/ajax/' + encodeURIComponent(CONFIG.FORMSUBMIT_EMAIL), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          _subject: 'New prior response from ' + resp.name,
+          name: resp.name, type: resp.type, familiarity: resp.familiarity,
+          task1_modal: modal(0), task2_modal: modal(1), task3_modal: modal(2),
+          full_response_json: JSON.stringify(resp)
+        })
+      });
+      emailOk = res.ok;
+    } catch (e) { console.error(e); }
+  }
+
+  // "saved" means it reached somewhere beyond this one device
+  const savedRemotely = webhookSent || emailOk;
+  const configured = hasWebhook || hasEmail;
+
+  renderDone(resp, savedRemotely, configured);
+  goto('pg-done');
+  btn.disabled = false;
+  btn.textContent = 'Submit \u2192';
+}
+
+function renderDone(resp, savedRemotely, configured) {
+  const statusEl = document.getElementById('done-status');
+  if (!configured) {
+    statusEl.innerHTML = `<div class="info-box" style="border-color:#fde68a;background:#fef9c3;color:var(--amber)">
+      Data collection is not configured yet on this copy of the page, see the SETUP REQUIRED
+      comment near the top of the file. Your answers were saved on this device only, please
+      <a href="#" onclick="dlOne('${resp.id}');return false;">download them</a> and send them
+      to the research team.</div>`;
+  } else if (!savedRemotely) {
+    statusEl.innerHTML = `<div class="info-box" style="border-color:#fca5a5;background:#fee2e2;color:var(--red)">
+      Your answers could not be saved automatically. Please
+      <a href="#" onclick="dlOne('${resp.id}');return false;">download them</a> and send them
+      to the research team.</div>`;
+  } else {
+    statusEl.innerHTML = `<div class="info-box" style="border-color:#bbf7d0;background:var(--green-lt);color:#14532d">
+      Saved. Thank you.</div>`;
+  }
+
+  const el2 = document.getElementById('done-summary');
+  const lbls = ['Task 1 \u2014 ITT effect', 'Task 2 \u2014 Barriers', 'Task 3 \u2014 Opt-in'];
+  el2.innerHTML = lbls.map((lbl, ti) => {
+    const rows = TASKS[ti].bins.map((bin, bi) => {
+      if (!resp.stones[ti][bi]) return '';
+      const pct = resp.stones[ti][bi] / TOTAL * 100;
+      return `<div class="sum-row">
+        <div class="sum-lbl">${bin.replace('\n', ' ')}</div>
+        <div class="sum-bg"><div class="sum-fill" style="width:${pct}%"></div></div>
+        <div class="sum-n">${resp.stones[ti][bi]}</div>
+      </div>`;
+    }).join('');
+    return `<div style="margin-bottom:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--navy);margin-bottom:5px">${lbl}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+function dlOne(id) {
+  const arr = load();
+  const resp = arr.find(r => r.id === id);
+  if (!resp) return;
+  dl(new Blob([JSON.stringify(resp, null, 2)], {type:'application/json'}),
+     'fz_prior_response_' + id + '.json');
+}
+
+function newResponse() {
+  ST = TASKS.map(t => new Array(t.bins.length).fill(0));
+  document.getElementById('f-name').value  = '';
+  document.getElementById('f-type').value  = 'academic';
+  document.getElementById('f-fam').value   = '3';
+  TASKS.forEach((_, ti) => syncBins(ti));
+  goto('pg-welcome');
+}
+
+// ── Admin modal ───────────────────────────────────────────────────────────────
+function openModal() {
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('pwd-input').value = '';
+  document.getElementById('pwd-err').style.display = 'none';
+  setTimeout(() => document.getElementById('pwd-input').focus(), 80);
+}
+function closeModal() { document.getElementById('overlay').classList.remove('open'); }
+function checkAdmin() {
+  if (document.getElementById('pwd-input').value === CODE) {
+    closeModal(); goto('pg-admin');
+  } else {
+    document.getElementById('pwd-err').style.display = '';
+  }
+}
+
+// ── Admin render ──────────────────────────────────────────────────────────────
+function load() {
+  try { return JSON.parse(localStorage.getItem('fz_prior') || '[]'); } catch { return []; }
+}
+
+function renderAdmin() {
+  const resps = load();
+  const body  = document.getElementById('admin-body');
+
+  if (!resps.length) {
+    body.innerHTML = `<div style="text-align:center;padding:60px 0;color:var(--muted)">
+      <div style="font-size:36px;margin-bottom:10px">&#128203;</div>
+      <p>No responses yet.</p></div>`;
+    return;
+  }
+
+  // Aggregate
+  const agg  = TASKS.map((t, ti) =>
+    t.bins.map((_, bi) => resps.reduce((s, r) => s + (r.stones[ti][bi] || 0), 0))
+  );
+  const aggT = agg.map(a => a.reduce((s, v) => s + v, 0) || 1);
+
+  // Type counts
+  const types = {};
+  resps.forEach(r => { types[r.type] = (types[r.type] || 0) + 1; });
+
+  const tLabels = [
+    'Task 1 \u2014 ITT effect on application rate',
+    'Task 2 \u2014 Primary barrier to non-take-up',
+    'Task 3 \u2014 Expected opt-in rate',
+  ];
+
+  const aggHtml = agg.map((a, ti) => `
+    <div style="margin-bottom:20px">
+      <h3>${tLabels[ti]}</h3>
+      ${TASKS[ti].bins.map((bin, bi) => {
+        const pct = Math.round(a[bi] / aggT[ti] * 100);
+        return `<div class="agg-row">
+          <div class="agg-lbl">${bin.replace('\n', ' ')}</div>
+          <div class="agg-bg"><div class="agg-fill" style="width:${pct}%"></div></div>
+          <div class="agg-pct">${pct}%</div>
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+
+  const tableRows = resps.slice().reverse().map(r => {
+    const modal = ti => {
+      const idx = r.stones[ti].indexOf(Math.max(...r.stones[ti]));
+      return TASKS[ti].bins[idx].replace('\n', ' ');
+    };
+    const when = new Date(r.ts).toLocaleString('en-GB', {
+      day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'
+    });
+    return `<tr>
+      <td>${r.name}</td>
+      <td><span class="badge b-${r.type}">${r.type}</span></td>
+      <td>${r.familiarity}/5</td>
+      <td>${modal(0)}</td>
+      <td>${modal(1)}</td>
+      <td>${modal(2)}</td>
+      <td style="color:var(--muted)">${when}</td>
+    </tr>`;
+  }).join('');
+
+  const typeCards = Object.entries(types).map(([k, v]) =>
+    `<div><div class="stat-num">${v}</div>
+     <div><span class="badge b-${k}">${k}</span></div></div>`
+  ).join('');
+
+  body.innerHTML = `
+    <div class="card">
+      <div class="stat-row">
+        <div>
+          <div class="stat-num">${resps.length}</div>
+          <div class="stat-lbl">Total responses</div>
+        </div>
+        ${typeCards}
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-s" onclick="dlJSON()">&#8659; JSON</button>
+          <button class="btn-s" onclick="dlCSV()">&#8659; CSV</button>
+          <button class="btn-s btn-danger" onclick="clearAll()">Clear all</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Aggregate distributions</h2>
+      <hr>
+      ${aggHtml}
+    </div>
+    <div class="card">
+      <h2 style="margin-bottom:10px">Individual responses</h2>
+      <table>
+        <thead><tr>
+          <th>Respondent</th><th>Type</th><th>Fam.</th>
+          <th>ITT modal</th><th>Top barrier</th><th>Opt-in modal</th><th>Time</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+function dlJSON() {
+  const d = load();
+  dl(new Blob([JSON.stringify(d, null, 2)], {type:'application/json'}),
+     'fz_prior_elicitation.json');
+}
+
+function dlCSV() {
+  const d = load();
+  if (!d.length) return;
+  const h = ['id','timestamp','name','type','familiarity',
+    ...TASKS[0].bins.map((_,i)=>'t0_bin'+i),
+    ...TASKS[1].bins.map((_,i)=>'t1_bin'+i),
+    ...TASKS[2].bins.map((_,i)=>'t2_bin'+i)];
+  const rows = d.map(r =>
+    [r.id, r.ts, `"${r.name}"`, r.type, r.familiarity,
+     ...r.stones[0], ...r.stones[1], ...r.stones[2]]);
+  dl(new Blob([[h,...rows].map(r=>r.join(',')).join('\n')],{type:'text/csv'}),
+     'fz_prior_elicitation.csv');
+}
+
+function dl(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function clearAll() {
+  const n = load().length;
+  if (confirm(`Delete all ${n} response${n!==1?'s':''}? This cannot be undone.`)) {
+    localStorage.removeItem('fz_prior');
+    renderAdmin();
+  }
+}
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+function el(tag, cls) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  return e;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+TASKS.forEach((_, ti) => buildBins(ti));
+if (window.location.hash === '#admin') { openModal(); }
+</script>
+</body>
+</html>
