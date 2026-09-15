@@ -120,21 +120,6 @@
     .ctr-bar    { height: 100%; background: var(--blue); border-radius: 3px; transition: width .2s; }
     .ctr-done   { font-size: 12px; font-weight: 600; color: var(--green); white-space: nowrap; }
 
-    .scroll-hint {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--blue);
-      margin-bottom: 10px;
-    }
-    .scroll-hint svg { width: 15px; height: 15px; flex-shrink: 0; animation: nudge 1.4s ease-in-out infinite; }
-    @keyframes nudge {
-      0%, 100% { transform: translateX(0); }
-      50%      { transform: translateX(4px); }
-    }
-
     .bins-wrap {
       display: flex;
       gap: 8px;
@@ -590,7 +575,6 @@ function goto(id) {
   document.getElementById(id).classList.add('active');
   if (TASKS_BY_ID[id]) {
     syncTask(id);
-    checkScrollHint(id);
     syncFakeScrollbar(id);
   }
   if (id === 'pg-admin') renderAdmin();
@@ -712,10 +696,6 @@ function buildTaskPage(cfg) {
         <div class="ctr-bar-bg"><div class="ctr-bar" id="cb_${cfg.id}" style="width:0%"></div></div>
         <span class="ctr-done" id="cd_${cfg.id}" style="visibility:hidden">&#10003; Complete</span>
       </div>
-      <div class="scroll-hint" id="scroll-hint-${cfg.id}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
-        Scroll sideways to see all ${cfg.bins.length} options
-      </div>
       <div class="bins-wrap" id="bw-${cfg.id}"></div>
       <div class="fake-scrollbar" id="fsb-${cfg.id}"><div class="fake-scrollbar-thumb" id="fsbt-${cfg.id}"></div></div>
       ${cfg.extra ? `<div class="field" style="margin-top:16px">
@@ -730,16 +710,8 @@ function buildTaskPage(cfg) {
   `;
   document.body.insertBefore(page, document.getElementById('pg-done'));
   buildBins(cfg.id);
-  checkScrollHint(cfg.id);
   setupFakeScrollbar(cfg.id);
-  window.addEventListener('resize', () => { checkScrollHint(cfg.id); syncFakeScrollbar(cfg.id); });
-}
-
-function checkScrollHint(id) {
-  const wrap = document.getElementById('bw-' + id);
-  const hint = document.getElementById('scroll-hint-' + id);
-  if (!wrap || !hint) return;
-  hint.style.display = wrap.scrollWidth > wrap.clientWidth + 4 ? 'flex' : 'none';
+  window.addEventListener('resize', () => syncFakeScrollbar(cfg.id));
 }
 
 function syncFakeScrollbar(id) {
@@ -858,25 +830,28 @@ async function submitResponse() {
 
   const hasWebhook = !!CONFIG.WEBHOOK_URL;
   const hasEmail = !!CONFIG.FORMSUBMIT_EMAIL;
-  let webhookSent = false;
-  let emailOk = false;
 
-  if (hasWebhook) {
+  const sendWebhook = async () => {
+    if (!hasWebhook) return false;
     try {
       const payload = { id: resp.id, name: resp.name, affiliation: resp.affiliation,
         role: resp.role, roleOther: resp.roleOther, consent: resp.consent,
         comment: resp.comment, extra: resp.extra, stones: resp.stones,
         taskIds: TASKS.map(t => t.id), taskLabels: TASKS.map(t => t.bins) };
-      fetch(CONFIG.WEBHOOK_URL, {
+      // mode 'no-cors' means we can never read the response body or status,
+      // but awaiting the fetch still tells us the request left the browser
+      // and didn't fail outright (offline, blocked, DNS, etc.)
+      await fetch(CONFIG.WEBHOOK_URL, {
         method: 'POST', mode: 'no-cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
       });
-      webhookSent = true;
-    } catch (e) { console.error(e); }
-  }
+      return true;
+    } catch (e) { console.error(e); return false; }
+  };
 
-  if (hasEmail) {
+  const sendEmail = async () => {
+    if (!hasEmail) return false;
     try {
       const modal = id => {
         const arr = resp.stones[id];
@@ -895,9 +870,14 @@ async function submitResponse() {
           full_response_json: JSON.stringify(resp)
         })
       });
-      emailOk = res.ok;
-    } catch (e) { console.error(e); }
-  }
+      return res.ok;
+    } catch (e) { console.error(e); return false; }
+  };
+
+  // run both save attempts in parallel, but wait for both to settle
+  // before moving on, so the Saving state on the button actually
+  // reflects what is happening and we don't navigate away too early
+  const [webhookSent, emailOk] = await Promise.all([sendWebhook(), sendEmail()]);
 
   const savedRemotely = webhookSent || emailOk;
   const configured = hasWebhook || hasEmail;
