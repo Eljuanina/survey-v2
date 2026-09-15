@@ -120,13 +120,64 @@
     .ctr-bar    { height: 100%; background: var(--blue); border-radius: 3px; transition: width .2s; }
     .ctr-done   { font-size: 12px; font-weight: 600; color: var(--green); white-space: nowrap; }
 
+    .scroll-hint {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--blue);
+      margin-bottom: 10px;
+    }
+    .scroll-hint svg { width: 15px; height: 15px; flex-shrink: 0; animation: nudge 1.4s ease-in-out infinite; }
+    @keyframes nudge {
+      0%, 100% { transform: translateX(0); }
+      50%      { transform: translateX(4px); }
+    }
+
     .bins-wrap {
       display: flex;
       gap: 8px;
       align-items: flex-end;
       overflow-x: auto;
       padding-bottom: 4px;
+      scrollbar-width: none;
+      /* fading edge shadows that shrink to nothing once you've scrolled
+         all the way in that direction, a visual cue that there is more
+         to see without needing extra markup */
+      background-color: var(--bg);
+      background-repeat: no-repeat;
+      background-size: 36px 100%, 36px 100%, 14px 100%, 14px 100%;
+      background-position: left center, right center, left center, right center;
+      background-attachment: local, local, scroll, scroll;
+      background-image:
+        linear-gradient(to right, var(--bg) 40%, rgba(248,250,252,0)),
+        linear-gradient(to left,  var(--bg) 40%, rgba(248,250,252,0)),
+        linear-gradient(to right, rgba(30,58,138,.16), rgba(30,58,138,0)),
+        linear-gradient(to left,  rgba(30,58,138,.16), rgba(30,58,138,0));
     }
+    .bins-wrap::-webkit-scrollbar { display: none; }
+
+    /* Custom scrollbar, drawn ourselves so it is always visible and
+       never depends on the OS or browser hiding/fading a native one. */
+    .fake-scrollbar {
+      height: 8px;
+      background: var(--border);
+      border-radius: 4px;
+      margin-top: 10px;
+      position: relative;
+      cursor: pointer;
+    }
+    .fake-scrollbar-thumb {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      background: var(--blue);
+      border-radius: 4px;
+      min-width: 24px;
+      cursor: grab;
+    }
+    .fake-scrollbar-thumb:active { cursor: grabbing; background: var(--navy); }
     .bin-col { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 74px; }
     .bin-box {
       width: 56px;
@@ -657,7 +708,12 @@ function buildTaskPage(cfg) {
         <div class="ctr-bar-bg"><div class="ctr-bar" id="cb_${cfg.id}" style="width:0%"></div></div>
         <span class="ctr-done" id="cd_${cfg.id}" style="visibility:hidden">&#10003; Complete</span>
       </div>
+      <div class="scroll-hint" id="scroll-hint-${cfg.id}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        Scroll sideways to see all ${cfg.bins.length} options
+      </div>
       <div class="bins-wrap" id="bw-${cfg.id}"></div>
+      <div class="fake-scrollbar" id="fsb-${cfg.id}"><div class="fake-scrollbar-thumb" id="fsbt-${cfg.id}"></div></div>
       ${cfg.extra ? `<div class="field" style="margin-top:16px">
         <label>${cfg.extra.label}</label>
         <input type="number" id="extra-${cfg.id}" placeholder="${cfg.extra.placeholder || ''}">
@@ -670,6 +726,67 @@ function buildTaskPage(cfg) {
   `;
   document.body.insertBefore(page, document.getElementById('pg-done'));
   buildBins(cfg.id);
+  checkScrollHint(cfg.id);
+  setupFakeScrollbar(cfg.id);
+  window.addEventListener('resize', () => { checkScrollHint(cfg.id); syncFakeScrollbar(cfg.id); });
+}
+
+function checkScrollHint(id) {
+  const wrap = document.getElementById('bw-' + id);
+  const hint = document.getElementById('scroll-hint-' + id);
+  if (!wrap || !hint) return;
+  hint.style.display = wrap.scrollWidth > wrap.clientWidth + 4 ? 'flex' : 'none';
+}
+
+function syncFakeScrollbar(id) {
+  const wrap  = document.getElementById('bw-' + id);
+  const bar   = document.getElementById('fsb-' + id);
+  const thumb = document.getElementById('fsbt-' + id);
+  if (!wrap || !bar || !thumb) return;
+  const overflow = wrap.scrollWidth > wrap.clientWidth + 1;
+  bar.style.display = overflow ? 'block' : 'none';
+  if (!overflow) return;
+  const ratio = wrap.clientWidth / wrap.scrollWidth;
+  const maxScroll = wrap.scrollWidth - wrap.clientWidth;
+  const scrollRatio = maxScroll > 0 ? wrap.scrollLeft / maxScroll : 0;
+  thumb.style.width = (ratio * 100) + '%';
+  thumb.style.left  = (scrollRatio * (100 - ratio * 100)) + '%';
+}
+
+function setupFakeScrollbar(id) {
+  const wrap  = document.getElementById('bw-' + id);
+  const bar   = document.getElementById('fsb-' + id);
+  const thumb = document.getElementById('fsbt-' + id);
+  if (!wrap || !bar || !thumb) return;
+
+  wrap.addEventListener('scroll', () => syncFakeScrollbar(id));
+  syncFakeScrollbar(id);
+
+  bar.addEventListener('click', e => {
+    if (e.target === thumb) return;
+    const rect = bar.getBoundingClientRect();
+    const clickRatio = (e.clientX - rect.left) / rect.width;
+    wrap.scrollLeft = clickRatio * (wrap.scrollWidth - wrap.clientWidth);
+  });
+
+  let dragging = false, startX = 0, startLeft = 0;
+  const startDrag = clientX => { dragging = true; startX = clientX; startLeft = wrap.scrollLeft; };
+  const moveDrag  = clientX => {
+    if (!dragging) return;
+    const rect = bar.getBoundingClientRect();
+    const dx = clientX - startX;
+    const maxScroll = wrap.scrollWidth - wrap.clientWidth;
+    wrap.scrollLeft = startLeft + dx * (maxScroll / rect.width);
+  };
+  const endDrag = () => { dragging = false; };
+
+  thumb.addEventListener('mousedown', e => { startDrag(e.clientX); e.preventDefault(); });
+  window.addEventListener('mousemove', e => moveDrag(e.clientX));
+  window.addEventListener('mouseup', endDrag);
+
+  thumb.addEventListener('touchstart', e => startDrag(e.touches[0].clientX), { passive: true });
+  window.addEventListener('touchmove', e => moveDrag(e.touches[0].clientX), { passive: true });
+  window.addEventListener('touchend', endDrag);
 }
 
 function buildFinalPage() {
