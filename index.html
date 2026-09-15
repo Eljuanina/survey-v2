@@ -319,6 +319,17 @@
     .modal-err { font-size: 12px; color: var(--red); margin-bottom: 8px; display: none; }
     .modal-btns { display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px; }
 
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--blue-lt);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      display: inline-block;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
 
     @media (max-width: 600px) {
@@ -828,6 +839,16 @@ async function submitResponse() {
     localStorage.setItem('fz_prior', JSON.stringify(arr));
   } catch(e) { console.error(e); }
 
+  // Show the confirmation screen immediately, the local copy is already
+  // safe in localStorage. The network saves (Apps Script, formsubmit)
+  // keep running in the background and we update the status once they
+  // are done, rather than making the person stare at "Saving..." for
+  // however long Apps Script takes to wake up (often several seconds).
+  renderDonePending(resp);
+  goto('pg-done');
+  btn.disabled = false;
+  btn.textContent = 'Submit \u2192';
+
   const hasWebhook = !!CONFIG.WEBHOOK_URL;
   const hasEmail = !!CONFIG.FORMSUBMIT_EMAIL;
 
@@ -870,26 +891,41 @@ async function submitResponse() {
           full_response_json: JSON.stringify(resp)
         })
       });
-      return res.ok;
+      // formsubmit answers 200 OK even the first time, when it has not
+      // actually relayed anything yet and instead sent an activation
+      // email that needs one confirmation click, so res.ok alone is not
+      // reliable. Read the body and check the success flag it reports.
+      let ok = res.ok;
+      try {
+        const data = await res.clone().json();
+        if (data && typeof data.success !== 'undefined') {
+          ok = data.success === true || data.success === 'true';
+        }
+        if (!ok) console.warn('formsubmit did not confirm delivery:', data);
+      } catch (parseErr) { /* keep the res.ok fallback if the body isn't JSON */ }
+      return ok;
     } catch (e) { console.error(e); return false; }
   };
 
-  // run both save attempts in parallel, but wait for both to settle
-  // before moving on, so the Saving state on the button actually
-  // reflects what is happening and we don't navigate away too early
   const [webhookSent, emailOk] = await Promise.all([sendWebhook(), sendEmail()]);
-
   const savedRemotely = webhookSent || emailOk;
   const configured = hasWebhook || hasEmail;
 
-  renderDone(resp, savedRemotely, configured);
-  goto('pg-done');
-  btn.disabled = false;
-  btn.textContent = 'Submit \u2192';
+  // only touch the status box, the rest of the done page (and any page
+  // the person may have already navigated to) is left alone
+  updateDoneStatus(resp, savedRemotely, configured);
 }
 
-function renderDone(resp, savedRemotely, configured) {
+function renderDonePending(resp) {
   const statusEl = document.getElementById('done-status');
+  statusEl.innerHTML = `<div class="info-box" style="display:flex;align-items:center;gap:10px">
+    <span class="spinner" aria-hidden="true"></span> Saving your response&hellip;</div>`;
+  renderDoneSummary(resp);
+}
+
+function updateDoneStatus(resp, savedRemotely, configured) {
+  const statusEl = document.getElementById('done-status');
+  if (!statusEl) return;
   if (!configured) {
     statusEl.innerHTML = `<div class="info-box" style="border-color:#fde68a;background:#fef9c3;color:var(--amber)">
       Data collection is not configured yet on this copy of the page, see the SETUP REQUIRED
@@ -905,7 +941,9 @@ function renderDone(resp, savedRemotely, configured) {
     statusEl.innerHTML = `<div class="info-box" style="border-color:#bbf7d0;background:var(--green-lt);color:#14532d">
       Saved. Thank you.</div>`;
   }
+}
 
+function renderDoneSummary(resp) {
   const el2 = document.getElementById('done-summary');
   el2.innerHTML = TASKS.map(t => {
     const stones = resp.stones[t.id];
