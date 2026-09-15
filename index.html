@@ -588,7 +588,11 @@ function tot(id) { return ST[id].reduce((a, b) => a + b, 0); }
 function goto(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
-  if (TASKS_BY_ID[id]) syncTask(id);
+  if (TASKS_BY_ID[id]) {
+    syncTask(id);
+    checkScrollHint(id);
+    syncFakeScrollbar(id);
+  }
   if (id === 'pg-admin') renderAdmin();
 }
 
